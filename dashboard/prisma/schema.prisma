@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cafe {
+  id          String               @id @default(cuid())
+  name        String
+  location    String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  calibration CalibrationSetting?
+  measurements Measurement[]
+}
+
+model CalibrationSetting {
+  id        String   @id @default(cuid())
+  cafeId    String   @unique
+  tdsMin    Float
+  tdsMax    Float
+  phMin     Float
+  phMax     Float
+  tempMin   Float
+  tempMax   Float
+  tolerance Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+}
+
+model Measurement {
+  id          String   @id @default(cuid())
+  cafeId      String?
+  temperature Float
+  ph          Float
+  tds         Float
+  tdsPpm      Float?
+  status      String
+  createdAt   DateTime @default(now())
+  cafe        Cafe?    @relation(fields: [cafeId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([cafeId])
+}

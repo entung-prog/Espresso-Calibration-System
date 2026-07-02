@@ -446,6 +446,22 @@ createdAt
 
 ---
 
+# Dashboard Web
+
+Dashboard Next.js sudah dibuat di folder `dashboard` dan siap deploy ke Vercel.
+
+Isi utamanya:
+
+- Realtime monitoring dari endpoint ESP32 `/api/sensor`
+- Calibration form untuk update standar TDS, pH, dan suhu
+- Cafe profile
+- History measurement dengan PostgreSQL
+- Export CSV
+
+Lihat panduan lengkap di `dashboard/README.md`.
+
+---
+
 # 🚀 Tahapan Pengembangan
 
 ## Implementasi Firmware Saat Ini
