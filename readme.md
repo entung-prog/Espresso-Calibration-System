@@ -1,573 +1,410 @@
-# ☕ Coffee Calibration System
+# Tutorial Setup Espresso Calibration System
 
-> Sistem Pengukuran Padatan Terlarut (TDS) dan pH Kopi Berbasis ESP32 dengan Algoritma Fuzzy Mamdani untuk Standarisasi Kalibrasi Espresso
+Panduan ini menjelaskan cara merakit alat dari awal, meng-upload kode ke ESP32, membaca data sensor, lalu menjalankan dashboard web.
 
----
+Project ini terdiri dari dua bagian:
 
-# 📖 Deskripsi
+- Firmware ESP32: file utama ada di `src/main.cpp`
+- Dashboard web: ada di folder `dashboard`
 
-Coffee Calibration System merupakan sistem berbasis ESP32 yang digunakan untuk membantu barista melakukan kalibrasi espresso menggunakan beberapa parameter.
-
-Sistem mampu membaca:
-
-- TDS (Total Dissolved Solid)
-- pH Kopi
-- Suhu Kopi
-
-Kemudian data tersebut diproses menggunakan Algoritma Fuzzy Mamdani sehingga menghasilkan status ekstraksi seperti:
-
-- Under Extract
-- Ideal
-- Over Extract
-
-Sistem dapat digunakan oleh berbagai coffee shop karena seluruh parameter standar dapat dikustomisasi.
-
----
-
-# 🎯 Tujuan
-
-- Membuat alat kalibrasi espresso berbasis IoT
-- Membantu standarisasi kualitas espresso
-- Menyediakan dashboard monitoring realtime
-- Menyimpan histori kalibrasi
-- Mendukung banyak profil cafe
-
----
-
-# 🏗 Arsitektur Sistem
-
-```
-
-Sensor TDS
-│
-Sensor pH
-│
-Sensor Suhu
-│
-▼
-
-ESP32
-
-│
-
-REST API + WebSocket
-
-│
-
-Next.js Dashboard
-
-│
-
-PostgreSQL
-
-```
-
----
-
-# ⚙ Hardware
-
-## ESP32
+## 1. Hardware yang Dibutuhkan
 
 - ESP32 DOIT DevKit V1
+- Sensor TDS analog, contoh Gravity Analog TDS Meter
+- Sensor pH analog, contoh modul pH probe E-201-C
+- Sensor suhu DS18B20 waterproof
+- Resistor 4.7k ohm untuk DS18B20
+- Kabel jumper
+- Kabel USB data untuk ESP32
+- Laptop/PC dengan Visual Studio Code
 
-## Sensor
+Catatan penting:
 
-- Gravity Analog TDS Meter V1.0
-- E-201-C pH Sensor
-- DS18B20 Waterproof
+- ESP32 hanya aman menerima tegangan analog maksimal 3.3V di pin ADC.
+- Jika modul TDS atau pH diberi 5V, pastikan output analognya tidak melebihi 3.3V sebelum masuk ke ESP32.
+- Semua GND harus disambungkan jadi satu.
 
----
+## 2. Pin Wiring ESP32
 
-# 💻 Software
+Kode firmware saat ini memakai pin berikut:
 
-## Firmware
+| Komponen | Pin modul sensor | Pin ESP32 |
+| --- | --- | --- |
+| Sensor TDS | VCC | 3V3 |
+| Sensor TDS | GND | GND |
+| Sensor TDS | AOUT / Analog Out | GPIO34 |
+| Sensor pH | VCC | 3V3 |
+| Sensor pH | GND | GND |
+| Sensor pH | PO / Analog Out | GPIO32 |
+| DS18B20 | VCC merah | 3V3 |
+| DS18B20 | GND hitam | GND |
+| DS18B20 | DATA kuning | GPIO4 |
 
-- PlatformIO
-- Arduino Framework
+Tambahkan resistor 4.7k ohm untuk DS18B20:
 
-## Dashboard
+- Satu kaki resistor ke DATA DS18B20 / GPIO4
+- Satu kaki resistor ke 3V3
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- ShadCN UI
-- Chart.js
+Skema sederhana:
 
-## Backend
+```text
+ESP32 3V3  -> VCC TDS, VCC pH, VCC DS18B20
+ESP32 GND  -> GND TDS, GND pH, GND DS18B20
+ESP32 34   -> Analog Out TDS
+ESP32 32   -> Analog Out pH
+ESP32 4    -> DATA DS18B20
 
-- Next.js API
-- Prisma ORM
-- PostgreSQL
-
----
-
-# 📂 Struktur Project
-
+Resistor 4.7k:
+GPIO4/DATA DS18B20 -> 3V3
 ```
 
-coffee-calibration/
+## 3. Install Software
 
-firmware/
-esp32/
+1. Install Visual Studio Code.
+2. Install extension PlatformIO IDE di VS Code.
+3. Install Node.js LTS jika ingin menjalankan dashboard web.
+4. Buka folder project ini di VS Code:
 
-dashboard/
-
-backend/
-
-database/
-
-docs/
-
+```text
+C:\Users\Entung\Documents\PlatformIO\Projects\espresso
 ```
 
----
+## 4. Cek Konfigurasi PlatformIO
 
-# 📊 Dashboard
+File `platformio.ini` sudah disiapkan untuk ESP32 DOIT DevKit V1:
 
-## 1 Dashboard
-
-Menampilkan data realtime.
-
-### Card
-
-- pH
-- TDS
-- Suhu
-- Status
-
----
-
-## 2 Realtime Monitoring
-
-Grafik
-
-- TDS
-- pH
-- Suhu
-
-Realtime menggunakan WebSocket.
-
----
-
-## 3 Calibration
-
-Digunakan untuk menentukan standar cafe.
-
-Parameter:
-
-- TDS Minimum
-- TDS Maximum
-- pH Minimum
-- pH Maximum
-- Temperatur Minimum
-- Temperatur Maximum
-
----
-
-## 4 Cafe Profile
-
-Setiap cafe memiliki standar berbeda.
-
-Contoh:
-
-Coffee Lab
-
-- TDS 8.5–9.5
-- pH 5.1–5.4
-
-Cafe B
-
-- TDS 9.2–10
-- pH 5.0–5.3
-
-Admin dapat:
-
-- Tambah Cafe
-- Edit Cafe
-- Hapus Cafe
-
----
-
-## 5 History
-
-Menyimpan seluruh hasil pengukuran.
-
-Data:
-
-- Tanggal
-- Jam
-- Nama Cafe
-- TDS
-- pH
-- Suhu
-- Status
-
-Export:
-
-- CSV
-- Excel
-
----
-
-## 6 Analytics
-
-Grafik:
-
-- TDS Harian
-- pH Harian
-- Suhu
-- Status Kalibrasi
-
----
-
-## 7 Sensor Calibration
-
-Kalibrasi Sensor pH
-
-- Buffer pH 4
-- Buffer pH 6.86
-- Buffer pH 9.18
-
-Kalibrasi TDS
-
-- 342 ppm
-- 707 ppm
-- 1000 ppm
-
----
-
-# ☕ Coffee Profile
-
-Setiap cafe memiliki profile.
-
+```ini
+[env:esp32doit-devkit-v1]
+platform = espressif32
+board = esp32doit-devkit-v1
+framework = arduino
+monitor_speed = 115200
+lib_deps =
+    paulstoffregen/OneWire@^2.3.8
+    milesburton/DallasTemperature@^4.0.6
 ```
 
-Cafe
+Library sensor akan otomatis di-download oleh PlatformIO saat build pertama.
 
-↓
+## 5. Setting WiFi ESP32
 
-Nama
+Buka file:
 
-↓
-
-Target TDS
-
-↓
-
-Target pH
-
-↓
-
-Target Temperature
-
-↓
-
-Tolerance
-
-↓
-
-Save
-
+```text
+src/main.cpp
 ```
 
----
-
-# 🧠 Fuzzy Mamdani
-
-Input
-
-## TDS
-
-- Rendah
-- Ideal
-- Tinggi
-
-## pH
-
-- Asam
-- Ideal
-- Basa
-
-## Temperatur
-
-- Rendah
-- Ideal
-- Tinggi
-
-Output
-
-- Under Extract
-- Ideal Espresso
-- Over Extract
-
----
-
-# 📡 API
-
-## Sensor
-
-GET
-
-/api/sensor
-
-Response
-
-```json
-{
-  "temperature": 91.2,
-  "ph": 5.21,
-  "tds": 9.12
-}
-```
-
----
-
-## Calibration
-
-GET
-
-```
-/api/calibration
-```
-
-POST
-
-```
-/api/calibration
-```
-
-PUT
-
-```
-/api/calibration/:id
-```
-
----
-
-## History
-
-GET
-
-```
-/api/history
-```
-
----
-
-## Cafe
-
-GET
-
-```
-/api/cafe
-```
-
-POST
-
-```
-/api/cafe
-```
-
-PUT
-
-```
-/api/cafe/:id
-```
-
-DELETE
-
-```
-/api/cafe/:id
-```
-
----
-
-# 🗄 Database
-
-## Cafe
-
-```
-id
-name
-createdAt
-updatedAt
-```
-
----
-
-## CalibrationSetting
-
-```
-id
-cafeId
-
-tdsMin
-tdsMax
-
-phMin
-phMax
-
-tempMin
-tempMax
-
-tolerance
-```
-
----
-
-## Measurement
-
-```
-id
-cafeId
-
-temperature
-ph
-tds
-
-status
-
-createdAt
-```
-
----
-
-# 🌐 Fitur Tambahan
-
-- Dark Mode
-- Export CSV
-- Export Excel
-- Responsive
-- Login Admin
-- Multi Cafe
-- Auto Refresh
-- OTA Update ESP32
-- Backup Database
-
----
-
-# Dashboard Web
-
-Dashboard Next.js sudah dibuat di folder `dashboard` dan siap deploy ke Vercel.
-
-Isi utamanya:
-
-- Realtime monitoring dari endpoint ESP32 `/api/sensor`
-- Calibration form untuk update standar TDS, pH, dan suhu
-- Cafe profile
-- History measurement dengan PostgreSQL
-- Export CSV
-
-Lihat panduan lengkap di `dashboard/README.md`.
-
----
-
-# 🚀 Tahapan Pengembangan
-
-## Implementasi Firmware Saat Ini
-
-File firmware utama ada di `src/main.cpp` dan sudah mencakup:
-
-- Pembacaan sensor TDS, pH, dan DS18B20
-- Kompensasi suhu untuk pembacaan TDS
-- REST API sensor langsung dari ESP32
-- Mode Access Point fallback jika SSID WiFi belum diisi atau koneksi gagal
-
-Logic Fuzzy Mamdani dan setting calibration dipindahkan ke backend dashboard
-Next.js agar lebih mudah dikembangkan untuk banyak cafe dan histori jangka
-panjang.
-
-### Konfigurasi WiFi
-
-Ubah nilai berikut di `src/main.cpp`:
+Cari bagian ini:
 
 ```cpp
 const char *WIFI_SSID = "";
 const char *WIFI_PASSWORD = "";
 ```
 
-Jika tetap kosong, ESP32 membuat access point:
+Ada dua pilihan.
 
-```text
-SSID     : Espresso-Calibrator
-Password : espresso123
+### Pilihan A: Pakai Access Point bawaan ESP32
+
+Biarkan kosong seperti ini:
+
+```cpp
+const char *WIFI_SSID = "";
+const char *WIFI_PASSWORD = "";
 ```
 
-### Endpoint Firmware
+Nanti ESP32 akan membuat WiFi sendiri:
+
+```text
+Nama WiFi : Espresso-Calibrator
+Password  : espresso123
+IP ESP32  : 192.168.4.1
+```
+
+### Pilihan B: ESP32 masuk ke WiFi rumah/kafe
+
+Isi nama WiFi dan password:
+
+```cpp
+const char *WIFI_SSID = "NAMA_WIFI";
+const char *WIFI_PASSWORD = "PASSWORD_WIFI";
+```
+
+Setelah berhasil connect, IP ESP32 akan tampil di Serial Monitor.
+
+## 6. Upload Kode ke ESP32
+
+1. Colok ESP32 ke laptop memakai kabel USB data.
+2. Buka project ini di VS Code.
+3. Klik ikon PlatformIO di sidebar kiri.
+4. Pilih `PROJECT TASKS`.
+5. Pilih environment `esp32doit-devkit-v1`.
+6. Klik `Build` untuk cek compile.
+7. Klik `Upload` untuk memasukkan kode ke ESP32.
+
+Alternatif lewat terminal PlatformIO:
+
+```powershell
+pio run
+pio run --target upload
+```
+
+Jika upload gagal dengan pesan sulit connect:
+
+1. Tekan dan tahan tombol `BOOT` di ESP32.
+2. Jalankan upload lagi.
+3. Lepas tombol `BOOT` saat terminal mulai menulis `Writing at...`.
+4. Tekan tombol `EN` atau `RST` setelah upload selesai.
+
+## 7. Buka Serial Monitor
+
+Setelah upload selesai, buka Serial Monitor:
+
+```powershell
+pio device monitor
+```
+
+Baud rate yang dipakai adalah `115200`.
+
+Output yang benar kira-kira seperti ini:
+
+```text
+ESPRESSO SENSOR NODE
+REST API: /api/sensor
+Temperature : 25.00 C
+TDS         : 0.00 % / 0 ppm
+PH          : 7.00
+```
+
+Jika mode Access Point aktif, Serial Monitor akan menampilkan:
+
+```text
+AP SSID     : Espresso-Calibrator
+AP IP       : 192.168.4.1
+```
+
+Jika ESP32 masuk WiFi router, Serial Monitor akan menampilkan IP dari router, misalnya:
+
+```text
+IP Address  : 192.168.1.25
+```
+
+## 8. Tes API Sensor ESP32
+
+Jika memakai Access Point bawaan:
+
+1. Sambungkan laptop/HP ke WiFi `Espresso-Calibrator`.
+2. Masukkan password `espresso123`.
+3. Buka browser:
+
+```text
+http://192.168.4.1/api/sensor
+```
+
+Jika ESP32 masuk WiFi router, ganti IP sesuai yang muncul di Serial Monitor:
+
+```text
+http://IP_ESP32/api/sensor
+```
+
+Contoh:
+
+```text
+http://192.168.1.25/api/sensor
+```
+
+Response normal:
+
+```json
+{
+  "temperature": 25.00,
+  "ph": 7.00,
+  "tds": 0.00,
+  "tdsPpm": 0,
+  "raw": {
+    "tdsAdc": 0,
+    "phAdc": 3102,
+    "phVoltage": 2.500
+  }
+}
+```
+
+## 9. Jalankan Dashboard Web
+
+Masuk ke folder dashboard:
+
+```powershell
+cd dashboard
+```
+
+Install dependency:
+
+```powershell
+npm install
+```
+
+Buat file `.env.local` di folder `dashboard`.
+
+Jika memakai Access Point ESP32:
+
+```env
+NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.4.1"
+```
+
+Jika ESP32 masuk WiFi router, isi IP ESP32:
+
+```env
+NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.1.25"
+```
+
+Untuk database PostgreSQL, tambahkan:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+```
+
+Jika belum punya database, dashboard tetap bisa dibuka, tetapi fitur simpan cafe, kalibrasi, dan history tidak aktif penuh.
+
+Jalankan dashboard:
+
+```powershell
+npm run dev
+```
+
+Buka browser:
+
+```text
+http://localhost:3000
+```
+
+## 10. Setup Database PostgreSQL
+
+Langkah ini hanya perlu jika ingin menyimpan cafe, setting kalibrasi, dan history.
+
+1. Siapkan PostgreSQL, misalnya dari Neon, Supabase, Railway, Vercel Postgres, atau PostgreSQL lokal.
+2. Isi `DATABASE_URL` di `dashboard/.env.local`.
+3. Jalankan migration:
+
+```powershell
+npm run prisma:deploy
+```
+
+Untuk development lokal, boleh memakai:
+
+```powershell
+npm run prisma:push
+```
+
+## 11. Alur Pemakaian
+
+1. Nyalakan ESP32.
+2. Pastikan sensor sudah tersambung sesuai tabel pin.
+3. Pastikan laptop/HP satu jaringan dengan ESP32.
+4. Cek `http://IP_ESP32/api/sensor`.
+5. Jalankan dashboard dengan `npm run dev`.
+6. Buka `http://localhost:3000`.
+7. Masukkan URL device ESP32 jika dashboard menyediakan input device URL.
+8. Pilih atau buat profil cafe.
+9. Atur target TDS, pH, dan suhu.
+10. Celupkan probe ke sampel espresso.
+11. Tunggu data stabil.
+12. Simpan hasil measurement jika database sudah aktif.
+
+## 12. Kalibrasi Sensor
+
+### Kalibrasi pH
+
+Gunakan cairan buffer pH, misalnya pH 4.00, 6.86, dan 9.18.
+
+Di firmware, rumus pH memakai nilai:
+
+```cpp
+const float PH_NEUTRAL_VOLTAGE = 2.50f;
+const float PH_SLOPE = 0.18f;
+```
+
+Jika pembacaan pH meleset, sesuaikan dua nilai tersebut berdasarkan hasil buffer.
+
+Langkah sederhana:
+
+1. Celupkan probe ke buffer pH 6.86 atau 7.00.
+2. Lihat `raw.phVoltage` dari endpoint `/api/sensor`.
+3. Pakai nilai voltage itu sebagai acuan `PH_NEUTRAL_VOLTAGE`.
+4. Cek lagi dengan buffer pH 4.00 dan 9.18.
+5. Sesuaikan `PH_SLOPE` sampai hasil mendekati nilai buffer.
+
+### Kalibrasi TDS
+
+Gunakan larutan standar TDS, misalnya 342 ppm, 707 ppm, atau 1000 ppm.
+
+Firmware menghitung TDS dari voltage dan kompensasi suhu. Jika hasil berbeda jauh:
+
+1. Pastikan sensor TDS diberi supply sesuai modul.
+2. Pastikan output analog tidak lebih dari 3.3V.
+3. Celupkan probe ke larutan standar.
+4. Bandingkan nilai `tdsPpm` dengan nilai larutan.
+5. Jika perlu, tambahkan faktor koreksi di rumus `tdsPpm` pada `src/main.cpp`.
+
+## 13. Troubleshooting
+
+### ESP32 tidak terdeteksi
+
+- Coba kabel USB lain yang mendukung data.
+- Install driver USB to Serial sesuai chip board, biasanya CP210x atau CH340.
+- Cek Device Manager untuk melihat port COM.
+
+### Upload gagal
+
+- Tekan tombol `BOOT` saat proses upload mulai.
+- Tutup Serial Monitor sebelum upload.
+- Coba port USB lain.
+- Pastikan board di `platformio.ini` adalah `esp32doit-devkit-v1`.
+
+### API tidak bisa dibuka
+
+- Pastikan ESP32 menyala.
+- Pastikan laptop/HP satu jaringan dengan ESP32.
+- Jika mode AP, sambungkan ke WiFi `Espresso-Calibrator`.
+- Cek IP ESP32 dari Serial Monitor.
+- Buka endpoint lengkap: `http://IP_ESP32/api/sensor`.
+
+### Dashboard tidak membaca sensor
+
+- Pastikan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` benar.
+- Pastikan URL memakai `http://`, bukan `https://`.
+- Coba buka API sensor langsung di browser.
+- Jika dashboard di-deploy HTTPS, browser bisa memblokir akses ke ESP32 lokal karena mixed content. Untuk kalibrasi lokal, jalankan dashboard dari laptop dengan `npm run dev`.
+
+### Nilai sensor aneh
+
+- Pastikan GND semua modul tersambung ke GND ESP32.
+- Jangan biarkan pin analog menggantung tanpa sensor.
+- Pastikan output analog sensor tidak melebihi 3.3V.
+- Kalibrasi pH dan TDS dengan cairan standar.
+- Jauhkan kabel sensor dari sumber noise seperti adaptor buruk atau motor.
+
+## 14. File Penting
+
+```text
+platformio.ini          Konfigurasi board ESP32 dan library
+src/main.cpp            Firmware ESP32
+dashboard/              Dashboard Next.js
+dashboard/.env.local    Konfigurasi URL ESP32 dan database
+dashboard/prisma/       Schema dan migration database
+```
+
+## 15. Endpoint yang Dipakai
+
+Firmware ESP32 menyediakan endpoint:
 
 ```http
 GET /api/sensor
 ```
 
-Contoh response:
+Dashboard membaca endpoint itu, lalu mengevaluasi status ekstraksi memakai backend dashboard:
 
-```json
-{
-  "temperature": 91.2,
-  "ph": 5.21,
-  "tds": 9.12,
-  "tdsPpm": 912
-}
+```http
+POST /api/evaluate
 ```
 
-Status ekstraksi dihasilkan oleh backend dashboard melalui endpoint
-`/api/evaluate`.
+Status seperti under extract, ideal, atau over extract dihitung di dashboard, bukan di firmware ESP32.
 
-## Phase 1
-
-- ESP32
-- Sensor TDS
-- Sensor pH
-- DS18B20
-
----
-
-## Phase 2
-
-REST API ESP32
-
----
-
-## Phase 3
-
-Dashboard Next.js
-
----
-
-## Phase 4
-
-Database PostgreSQL
-
----
-
-## Phase 5
-
-Fuzzy Mamdani
-
----
-
-## Phase 6
-
-History
-
----
-
-## Phase 7
-
-Analytics
-
----
-
-## Phase 8
-
-Deployment
-
----
-
-# 📈 Pengembangan Selanjutnya
-
-- Multi-user (Admin, Barista, Owner)
-- Integrasi QR Code untuk tiap mesin espresso
-- Kalibrasi otomatis berdasarkan histori
-- Prediksi kualitas espresso menggunakan Machine Learning
-- Sinkronisasi cloud untuk banyak cabang kafe
