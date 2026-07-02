@@ -136,10 +136,10 @@ export function Dashboard() {
           return;
         }
 
-        const readingWithTime = {
+        const readingWithTime = await evaluateReading({
           ...reading,
           createdAt: new Date().toISOString(),
-        };
+        });
 
         setLatest(readingWithTime);
         setSeries((current) => [...current.slice(-39), readingWithTime]);
@@ -162,7 +162,7 @@ export function Dashboard() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [deviceUrl, isPolling, isSavingHistory, selectedCafeId]);
+  }, [deviceUrl, isPolling, isSavingHistory, selectedCafeId, calibration]);
 
   async function loadCafes() {
     try {
@@ -219,6 +219,28 @@ export function Dashboard() {
     }
   }
 
+  async function evaluateReading(reading: SensorReading) {
+    const cafeId = selectedCafeId === fallbackCafe.id ? undefined : selectedCafeId;
+    const response = await fetch("/api/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...reading,
+        cafeId,
+        calibration,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ...reading,
+        status: "Unclassified",
+      };
+    }
+
+    return (await response.json()) as SensorReading;
+  }
+
   async function createCafe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const response = await fetch("/api/cafes", {
@@ -242,18 +264,6 @@ export function Dashboard() {
     event.preventDefault();
     setNotice("");
 
-    if (deviceUrl) {
-      try {
-        await fetch(`${normalizeDeviceUrl(deviceUrl)}/api/calibration`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(calibration),
-        });
-      } catch {
-        setNotice("Could not push calibration to ESP32. Saved dashboard copy if database is ready.");
-      }
-    }
-
     if (selectedCafeId !== fallbackCafe.id) {
       const response = await fetch("/api/calibration", {
         method: "PUT",
@@ -269,7 +279,7 @@ export function Dashboard() {
       await loadCafes();
     }
 
-    setNotice("Calibration updated.");
+    setNotice("Backend calibration updated.");
   }
 
   function applyDeviceUrl(event: FormEvent<HTMLFormElement>) {
@@ -334,7 +344,7 @@ export function Dashboard() {
         String(item.tds),
         String(item.ph),
         String(item.temperature),
-        item.status,
+        item.status ?? "Unclassified",
       ]),
     ];
 
@@ -406,10 +416,10 @@ export function Dashboard() {
               <div className="mt-5">
                 <span
                   className={`inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold ${statusClass(
-                    latest?.status ?? "Unknown",
+                    latest?.status ?? "Unclassified",
                   )}`}
                 >
-                  {latest?.status ?? "Unknown"}
+                  {latest?.status ?? "Unclassified"}
                 </span>
               </div>
             </div>
@@ -512,10 +522,10 @@ export function Dashboard() {
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${statusClass(
-                              item.status,
+                              item.status ?? "Unclassified",
                             )}`}
                           >
-                            {item.status}
+                            {item.status ?? "Unclassified"}
                           </span>
                         </td>
                       </tr>

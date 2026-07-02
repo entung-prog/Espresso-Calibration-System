@@ -13,7 +13,7 @@ export type SensorReading = {
   ph: number;
   tds: number;
   tdsPpm?: number;
-  status: string;
+  status?: string;
   createdAt?: string;
 };
 

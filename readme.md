@@ -470,13 +470,12 @@ File firmware utama ada di `src/main.cpp` dan sudah mencakup:
 
 - Pembacaan sensor TDS, pH, dan DS18B20
 - Kompensasi suhu untuk pembacaan TDS
-- Fuzzy Mamdani sederhana untuk status:
-  - Under Extract
-  - Ideal Espresso
-  - Over Extract
-- Penyimpanan setting kalibrasi di NVS ESP32
-- REST API langsung dari ESP32
+- REST API sensor langsung dari ESP32
 - Mode Access Point fallback jika SSID WiFi belum diisi atau koneksi gagal
+
+Logic Fuzzy Mamdani dan setting calibration dipindahkan ke backend dashboard
+Next.js agar lebih mudah dikembangkan untuk banyak cafe dan histori jangka
+panjang.
 
 ### Konfigurasi WiFi
 
@@ -507,37 +506,12 @@ Contoh response:
   "temperature": 91.2,
   "ph": 5.21,
   "tds": 9.12,
-  "tdsPpm": 912,
-  "status": "Ideal Espresso"
+  "tdsPpm": 912
 }
 ```
 
-```http
-GET /api/calibration
-POST /api/calibration
-PUT /api/calibration
-```
-
-Contoh body JSON untuk update kalibrasi:
-
-```json
-{
-  "tdsMin": 8.5,
-  "tdsMax": 9.5,
-  "phMin": 5.1,
-  "phMax": 5.4,
-  "tempMin": 88,
-  "tempMax": 96,
-  "tolerance": 0.2
-}
-```
-
-```http
-GET /api/cafe
-```
-
-Endpoint cafe saat ini mengembalikan profil default lokal karena dashboard,
-backend, dan database belum ada di struktur proyek ini.
+Status ekstraksi dihasilkan oleh backend dashboard melalui endpoint
+`/api/evaluate`.
 
 ## Phase 1
 

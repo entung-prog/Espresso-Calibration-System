@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         ph: reading.ph,
         tds: reading.tds,
         tdsPpm: reading.tdsPpm,
-        status: reading.status,
+        status: reading.status ?? "Unclassified",
       },
     });
 

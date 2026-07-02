@@ -45,6 +45,6 @@ export function parseReading(input: Record<string, unknown>): SensorReading {
     tds: numberFrom(input.tds, 0),
     tdsPpm:
       input.tdsPpm === undefined ? undefined : numberFrom(input.tdsPpm, 0),
-    status: typeof input.status === "string" ? input.status : "Unknown",
+    status: typeof input.status === "string" ? input.status : "Unclassified",
   };
 }

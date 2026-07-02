@@ -5,8 +5,9 @@ Next.js dashboard untuk monitoring ESP32 Coffee Calibration System.
 ## Fitur
 
 - Realtime card untuk TDS, pH, temperature, dan status ekstraksi
+- Fuzzy Mamdani berjalan di backend endpoint `/api/evaluate`
 - Grafik realtime memakai Chart.js
-- Form kalibrasi dan push setting ke ESP32
+- Form kalibrasi yang disimpan di backend/PostgreSQL
 - Cafe profile
 - History measurement ke PostgreSQL
 - Export history CSV
@@ -75,6 +76,24 @@ Setelah deploy pertama, jalankan migration dari lokal dengan `DATABASE_URL` prod
 ```powershell
 npm run prisma:deploy
 ```
+
+## Logic Fuzzy
+
+Logic Fuzzy Mamdani ada di:
+
+```text
+lib/fuzzy.ts
+```
+
+Dashboard mengambil data mentah dari ESP32 `/api/sensor`, lalu mengirimnya ke:
+
+```http
+POST /api/evaluate
+```
+
+Endpoint backend ini memakai calibration profile dari PostgreSQL jika `cafeId`
+tersedia. Jika database belum aktif, endpoint memakai default calibration dari
+`lib/validation.ts`.
 
 ## Catatan ESP32 dan Vercel
 
