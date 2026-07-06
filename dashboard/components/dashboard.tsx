@@ -25,7 +25,7 @@ import {
 import { Line } from "react-chartjs-2";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Cafe, Calibration, SensorReading } from "@/lib/types";
-import { defaultCalibration } from "@/lib/validation";
+import { assertCalibration, defaultCalibration } from "@/lib/validation";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
@@ -66,7 +66,16 @@ function formatNumber(value: number | undefined, digits = 2) {
 }
 
 function normalizeDeviceUrl(url: string) {
-  return url.trim().replace(/\/$/, "");
+  const trimmed = url.trim().replace(/\/$/, "");
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `http://${trimmed}`;
 }
 
 export function Dashboard() {
@@ -88,12 +97,13 @@ export function Dashboard() {
   const selectedCafe = cafes.find((cafe) => cafe.id === selectedCafeId) ?? cafes[0];
 
   useEffect(() => {
-    const savedUrl =
-      localStorage.getItem("espressoDeviceUrl") ??
+    const savedUrl = localStorage.getItem("espressoDeviceUrl");
+    const fallbackUrl =
       process.env.NEXT_PUBLIC_DEFAULT_DEVICE_URL ??
-      "http://192.168.4.1";
-    setDeviceUrl(savedUrl);
-    setDraftDeviceUrl(savedUrl);
+      (window.location.protocol === "https:" ? "" : "http://192.168.4.1");
+    const nextUrl = savedUrl ?? fallbackUrl;
+    setDeviceUrl(nextUrl);
+    setDraftDeviceUrl(nextUrl);
   }, []);
 
   useEffect(() => {
@@ -121,10 +131,26 @@ export function Dashboard() {
     }
 
     let cancelled = false;
+    const normalizedDeviceUrl = normalizeDeviceUrl(deviceUrl);
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(normalizedDeviceUrl);
+    } catch {
+      setConnectionStatus("Device URL is invalid");
+      return;
+    }
+
+    if (window.location.protocol === "https:" && parsedUrl.protocol === "http:") {
+      setConnectionStatus(
+        "HTTPS dashboard cannot fetch an HTTP ESP URL. Use a local dashboard or an HTTPS tunnel.",
+      );
+      return;
+    }
 
     async function poll() {
       try {
-        const response = await fetch(`${normalizeDeviceUrl(deviceUrl)}/api/sensor`, {
+        const response = await fetch(`${normalizedDeviceUrl}/api/sensor`, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -263,6 +289,14 @@ export function Dashboard() {
   async function saveCalibration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
+    const messages: string[] = [];
+
+    try {
+      assertCalibration(calibration);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Invalid calibration range.");
+      return;
+    }
 
     if (selectedCafeId !== fallbackCafe.id) {
       const response = await fetch("/api/calibration", {
@@ -277,9 +311,32 @@ export function Dashboard() {
       }
 
       await loadCafes();
+      messages.push("Backend calibration updated.");
     }
 
-    setNotice("Backend calibration updated.");
+    const normalizedDeviceUrl = normalizeDeviceUrl(deviceUrl);
+    if (normalizedDeviceUrl) {
+      try {
+        const response = await fetch(`${normalizedDeviceUrl}/api/calibration`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(calibration),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Device returned ${response.status}`);
+        }
+
+        messages.push("ESP32 calibration updated.");
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "ESP32 calibration update failed.");
+        return;
+      }
+    } else if (selectedCafeId === fallbackCafe.id) {
+      messages.push("Local calibration updated. Set an ESP32 URL to save it on the device.");
+    }
+
+    setNotice(messages.join(" "));
   }
 
   function applyDeviceUrl(event: FormEvent<HTMLFormElement>) {
@@ -287,7 +344,13 @@ export function Dashboard() {
     const normalized = normalizeDeviceUrl(draftDeviceUrl);
     setDeviceUrl(normalized);
     localStorage.setItem("espressoDeviceUrl", normalized);
-    setConnectionStatus("Connecting");
+    setConnectionStatus(
+      window.location.protocol === "https:" && normalized.startsWith("http://")
+        ? "HTTPS dashboard cannot fetch an HTTP ESP URL."
+        : normalized
+          ? "Connecting"
+          : "Not connected",
+    );
   }
 
   function updateCalibration(key: keyof Calibration, value: string) {

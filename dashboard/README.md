@@ -30,8 +30,9 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.4.1"
 ```
 
-`DATABASE_URL` dipakai untuk cafe, calibration, dan history. Tanpa database, dashboard tetap terbuka, tetapi fitur simpan data akan memberi pesan bahwa database belum aktif.
+Kalau dashboard dipakai di Vercel, kosongkan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` atau pakai URL HTTPS publik/tunnel. Browser HTTPS tidak bisa fetch ke IP lokal ESP32 langsung.
 
+`DATABASE_URL` dipakai untuk cafe, calibration, dan history. Tanpa database, dashboard tetap terbuka, tetapi fitur simpan data akan memberi pesan bahwa database belum aktif.
 ## Database
 
 Untuk membuat tabel PostgreSQL:
@@ -68,7 +69,7 @@ Environment variables di Vercel:
 
 ```text
 DATABASE_URL
-NEXT_PUBLIC_DEFAULT_DEVICE_URL
+NEXT_PUBLIC_DEFAULT_DEVICE_URL (opsional, hanya untuk URL device HTTPS publik/tunnel)
 ```
 
 Setelah deploy pertama, jalankan migration dari lokal dengan `DATABASE_URL` production:
@@ -98,6 +99,8 @@ tersedia. Jika database belum aktif, endpoint memakai default calibration dari
 ## Catatan ESP32 dan Vercel
 
 Dashboard Vercel berjalan via HTTPS. Browser modern sering memblokir fetch dari HTTPS ke `http://IP_ESP32` karena mixed content. Server Vercel juga tidak bisa mengakses IP lokal ESP32.
+
+Hotspot HP bisa dipakai, tapi harus 2.4 GHz dan WPA2. ESP32 tidak bisa join 5 GHz atau WPA3.
 
 Pilihan produksi yang lebih stabil:
 

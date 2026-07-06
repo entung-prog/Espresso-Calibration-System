@@ -97,19 +97,19 @@ src/main.cpp
 Cari bagian ini:
 
 ```cpp
-const char *WIFI_SSID = "";
-const char *WIFI_PASSWORD = "";
+const char *DEFAULT_WIFI_SSID = "";
+const char *DEFAULT_WIFI_PASSWORD = "";
 ```
 
-Ada dua pilihan.
+Ada dua pilihan. Firmware sekarang juga menyimpan kredensial WiFi di Preferences, jadi kalau mau ganti tanpa rebuild kamu bisa kirim `POST /api/wifi` ke ESP32.
 
 ### Pilihan A: Pakai Access Point bawaan ESP32
 
 Biarkan kosong seperti ini:
 
 ```cpp
-const char *WIFI_SSID = "";
-const char *WIFI_PASSWORD = "";
+const char *DEFAULT_WIFI_SSID = "";
+const char *DEFAULT_WIFI_PASSWORD = "";
 ```
 
 Nanti ESP32 akan membuat WiFi sendiri:
@@ -125,8 +125,8 @@ IP ESP32  : 192.168.4.1
 Isi nama WiFi dan password:
 
 ```cpp
-const char *WIFI_SSID = "NAMA_WIFI";
-const char *WIFI_PASSWORD = "PASSWORD_WIFI";
+const char *DEFAULT_WIFI_SSID = "NAMA_WIFI";
+const char *DEFAULT_WIFI_PASSWORD = "PASSWORD_WIFI";
 ```
 
 Setelah berhasil connect, IP ESP32 akan tampil di Serial Monitor.
@@ -244,7 +244,7 @@ npm install
 
 Buat file `.env.local` di folder `dashboard`.
 
-Jika memakai Access Point ESP32:
+Jika dashboard dipakai lokal dan ESP32 ada di jaringan yang sama:
 
 ```env
 NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.4.1"
@@ -255,6 +255,8 @@ Jika ESP32 masuk WiFi router, isi IP ESP32:
 ```env
 NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.1.25"
 ```
+
+Kalau dashboard dideploy ke Vercel, kosongkan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` atau pakai URL HTTPS publik/tunnel. Browser HTTPS tidak bisa fetch ke IP lokal ESP32 langsung.
 
 Untuk database PostgreSQL, tambahkan:
 
@@ -369,10 +371,10 @@ Firmware menghitung TDS dari voltage dan kompensasi suhu. Jika hasil berbeda jau
 
 ### Dashboard tidak membaca sensor
 
-- Pastikan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` benar.
-- Pastikan URL memakai `http://`, bukan `https://`.
-- Coba buka API sensor langsung di browser.
-- Jika dashboard di-deploy HTTPS, browser bisa memblokir akses ke ESP32 lokal karena mixed content. Untuk kalibrasi lokal, jalankan dashboard dari laptop dengan `npm run dev`.
+- Pastikan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` benar untuk mode yang dipakai.
+- Untuk dashboard Vercel, jangan arahkan ke IP lokal ESP32; gunakan dashboard lokal atau URL HTTPS publik/tunnel.
+- Coba buka API sensor langsung di browser saat debugging lokal.
+- Jika pakai hotspot/tethering, pastikan hotspot 2.4 GHz dan WPA2; ESP32 tidak bisa join 5 GHz atau WPA3.
 
 ### Nilai sensor aneh
 
@@ -406,5 +408,4 @@ Dashboard membaca endpoint itu, lalu mengevaluasi status ekstraksi memakai backe
 POST /api/evaluate
 ```
 
-Status seperti under extract, ideal, atau over extract dihitung di dashboard, bukan di firmware ESP32.
-
+Status seperti under extract, ideal, atau over extract dihitung di dashboard dan juga tersedia dari firmware ESP32 lewat `/api/sensor`.
