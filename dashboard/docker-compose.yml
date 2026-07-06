@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: espresso-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: espresso
+      POSTGRES_PASSWORD: espresso
+      POSTGRES_DB: espresso
+    ports:
+      - "5432:5432"
+    volumes:
+      - espresso-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U espresso -d espresso"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  espresso-postgres-data:

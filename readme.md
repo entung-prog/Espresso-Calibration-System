@@ -1,13 +1,44 @@
-# Tutorial Setup Espresso Calibration System
+# Espresso Calibration System
 
-Panduan ini menjelaskan cara merakit alat dari awal, meng-upload kode ke ESP32, membaca data sensor, lalu menjalankan dashboard web.
+Panduan lengkap untuk merakit ESP32 sensor node, menjalankan dashboard lokal, menghubungkan Neon PostgreSQL, dan menangani skenario error jaringan yang umum terjadi.
 
-Project ini terdiri dari dua bagian:
+Project ini punya dua bagian utama:
 
-- Firmware ESP32: file utama ada di `src/main.cpp`
-- Dashboard web: ada di folder `dashboard`
+- Firmware ESP32: `src/main.cpp`
+- Dashboard web Next.js: `dashboard/`
 
-## 1. Hardware yang Dibutuhkan
+## Ringkasan Sistem
+
+ESP32 membaca sensor TDS, pH, dan suhu. Dashboard membaca data ESP32 lewat HTTP, mengevaluasi status ekstraksi, lalu bisa menyimpan cafe, calibration, dan history ke PostgreSQL/Neon.
+
+Alur data normal:
+
+```text
+Sensor -> ESP32 -> Dashboard lokal/Vercel -> Neon PostgreSQL
+```
+
+Endpoint penting ESP32:
+
+```http
+GET  /api/sensor
+GET  /api/calibration
+POST /api/calibration
+GET  /api/network
+POST /api/wifi
+```
+
+Endpoint penting dashboard:
+
+```http
+GET  /api/cafes
+POST /api/cafes
+GET  /api/history
+POST /api/history
+POST /api/evaluate
+PUT  /api/calibration
+```
+
+## Hardware
 
 - ESP32 DOIT DevKit V1
 - Sensor TDS analog, contoh Gravity Analog TDS Meter
@@ -16,17 +47,15 @@ Project ini terdiri dari dua bagian:
 - Resistor 4.7k ohm untuk DS18B20
 - Kabel jumper
 - Kabel USB data untuk ESP32
-- Laptop/PC dengan Visual Studio Code
+- Laptop/PC dengan VS Code dan PlatformIO
 
-Catatan penting:
+Catatan listrik:
 
-- ESP32 hanya aman menerima tegangan analog maksimal 3.3V di pin ADC.
-- Jika modul TDS atau pH diberi 5V, pastikan output analognya tidak melebihi 3.3V sebelum masuk ke ESP32.
-- Semua GND harus disambungkan jadi satu.
+- Pin ADC ESP32 hanya aman sampai 3.3V.
+- Jika modul sensor diberi 5V, pastikan output analog ke ESP32 tidak lebih dari 3.3V.
+- Semua GND wajib disambungkan jadi satu.
 
-## 2. Pin Wiring ESP32
-
-Kode firmware saat ini memakai pin berikut:
+## Wiring ESP32
 
 | Komponen | Pin modul sensor | Pin ESP32 |
 | --- | --- | --- |
@@ -40,12 +69,13 @@ Kode firmware saat ini memakai pin berikut:
 | DS18B20 | GND hitam | GND |
 | DS18B20 | DATA kuning | GPIO4 |
 
-Tambahkan resistor 4.7k ohm untuk DS18B20:
+Tambahkan resistor 4.7k ohm:
 
-- Satu kaki resistor ke DATA DS18B20 / GPIO4
-- Satu kaki resistor ke 3V3
+```text
+GPIO4 / DATA DS18B20 -> resistor 4.7k -> 3V3
+```
 
-Skema sederhana:
+Skema ringkas:
 
 ```text
 ESP32 3V3  -> VCC TDS, VCC pH, VCC DS18B20
@@ -53,187 +83,168 @@ ESP32 GND  -> GND TDS, GND pH, GND DS18B20
 ESP32 34   -> Analog Out TDS
 ESP32 32   -> Analog Out pH
 ESP32 4    -> DATA DS18B20
-
-Resistor 4.7k:
-GPIO4/DATA DS18B20 -> 3V3
 ```
 
-## 3. Install Software
+## Install Software
 
-1. Install Visual Studio Code.
-2. Install extension PlatformIO IDE di VS Code.
-3. Install Node.js LTS jika ingin menjalankan dashboard web.
-4. Buka folder project ini di VS Code:
+Install:
+
+- Visual Studio Code
+- Extension PlatformIO IDE
+- Node.js LTS
+- Git, jika belum ada
+
+Buka folder project:
 
 ```text
 C:\Users\Entung\Documents\PlatformIO\Projects\espresso
 ```
 
-## 4. Cek Konfigurasi PlatformIO
+## Firmware ESP32
 
-File `platformio.ini` sudah disiapkan untuk ESP32 DOIT DevKit V1:
-
-```ini
-[env:esp32doit-devkit-v1]
-platform = espressif32
-board = esp32doit-devkit-v1
-framework = arduino
-monitor_speed = 115200
-lib_deps =
-    paulstoffregen/OneWire@^2.3.8
-    milesburton/DallasTemperature@^4.0.6
-```
-
-Library sensor akan otomatis di-download oleh PlatformIO saat build pertama.
-
-## 5. Setting WiFi ESP32
-
-Buka file:
+File firmware utama:
 
 ```text
 src/main.cpp
 ```
 
-Cari bagian ini:
+Default WiFi ada di bagian:
 
 ```cpp
 const char *DEFAULT_WIFI_SSID = "";
 const char *DEFAULT_WIFI_PASSWORD = "";
 ```
 
-Ada dua pilihan. Firmware sekarang juga menyimpan kredensial WiFi di Preferences, jadi kalau mau ganti tanpa rebuild kamu bisa kirim `POST /api/wifi` ke ESP32.
-
-### Pilihan A: Pakai Access Point bawaan ESP32
-
-Biarkan kosong seperti ini:
-
-```cpp
-const char *DEFAULT_WIFI_SSID = "";
-const char *DEFAULT_WIFI_PASSWORD = "";
-```
-
-Nanti ESP32 akan membuat WiFi sendiri:
+Jika kosong, ESP32 membuat Access Point sendiri:
 
 ```text
-Nama WiFi : Espresso-Calibrator
-Password  : espresso123
-IP ESP32  : 192.168.4.1
+SSID     : Espresso-Calibrator
+Password : espresso123
+IP       : 192.168.4.1
 ```
 
-### Pilihan B: ESP32 masuk ke WiFi rumah/kafe
+Firmware juga menyimpan WiFi ke Preferences. Jadi setelah upload, WiFi bisa diganti tanpa rebuild lewat endpoint:
 
-Isi nama WiFi dan password:
-
-```cpp
-const char *DEFAULT_WIFI_SSID = "NAMA_WIFI";
-const char *DEFAULT_WIFI_PASSWORD = "PASSWORD_WIFI";
+```http
+POST /api/wifi
 ```
 
-Setelah berhasil connect, IP ESP32 akan tampil di Serial Monitor.
+## Build dan Upload Firmware
 
-## 6. Upload Kode ke ESP32
-
-1. Colok ESP32 ke laptop memakai kabel USB data.
-2. Buka project ini di VS Code.
-3. Klik ikon PlatformIO di sidebar kiri.
-4. Pilih `PROJECT TASKS`.
-5. Pilih environment `esp32doit-devkit-v1`.
-6. Klik `Build` untuk cek compile.
-7. Klik `Upload` untuk memasukkan kode ke ESP32.
-
-Alternatif lewat terminal PlatformIO:
+Dari root project:
 
 ```powershell
 pio run
 pio run --target upload
 ```
 
-Jika upload gagal dengan pesan sulit connect:
+Jika `pio` tidak ditemukan di Windows, pakai path PlatformIO:
 
-1. Tekan dan tahan tombol `BOOT` di ESP32.
-2. Jalankan upload lagi.
-3. Lepas tombol `BOOT` saat terminal mulai menulis `Writing at...`.
-4. Tekan tombol `EN` atau `RST` setelah upload selesai.
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run --target upload
+```
 
-## 7. Buka Serial Monitor
+Jika upload gagal:
 
-Setelah upload selesai, buka Serial Monitor:
+- Pastikan kabel USB mendukung data.
+- Tutup Serial Monitor sebelum upload.
+- Tekan dan tahan tombol `BOOT` saat upload mulai.
+- Lepas tombol `BOOT` saat muncul proses `Writing at...`.
+- Tekan `EN` atau `RST` setelah upload selesai.
+
+## Serial Monitor
+
+Buka monitor:
 
 ```powershell
 pio device monitor
 ```
 
-Baud rate yang dipakai adalah `115200`.
+Atau:
 
-Output yang benar kira-kira seperti ini:
-
-```text
-ESPRESSO SENSOR NODE
-REST API: /api/sensor
-Temperature : 25.00 C
-TDS         : 0.00 % / 0 ppm
-PH          : 7.00
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" device monitor
 ```
 
-Jika mode Access Point aktif, Serial Monitor akan menampilkan:
+Baud rate:
+
+```text
+115200
+```
+
+Output normal kira-kira:
+
+```text
+ESPRESSO CALIBRATION SYSTEM
+REST API: /api/sensor /api/calibration
+Dashboard device URL: http://192.168.x.x
+Temperature : 92.00 C
+TDS         : 8.90 % / 890 ppm
+PH          : 5.24
+Status      : Ideal Espresso
+```
+
+Jika belum join WiFi router:
 
 ```text
 AP SSID     : Espresso-Calibrator
 AP IP       : 192.168.4.1
+Connect to AP, then open: http://192.168.4.1
 ```
 
-Jika ESP32 masuk WiFi router, Serial Monitor akan menampilkan IP dari router, misalnya:
+## Tes ESP32 API
 
-```text
-IP Address  : 192.168.1.25
-```
-
-## 8. Tes API Sensor ESP32
-
-Jika memakai Access Point bawaan:
-
-1. Sambungkan laptop/HP ke WiFi `Espresso-Calibrator`.
-2. Masukkan password `espresso123`.
-3. Buka browser:
+Mode AP ESP32:
 
 ```text
 http://192.168.4.1/api/sensor
 ```
 
-Jika ESP32 masuk WiFi router, ganti IP sesuai yang muncul di Serial Monitor:
+Mode ESP32 join WiFi router/hotspot:
 
 ```text
 http://IP_ESP32/api/sensor
 ```
 
-Contoh:
-
-```text
-http://192.168.1.25/api/sensor
-```
-
-Response normal:
+Contoh response:
 
 ```json
 {
-  "temperature": 25.00,
-  "ph": 7.00,
-  "tds": 0.00,
-  "tdsPpm": 0,
+  "temperature": 92.0,
+  "ph": 5.24,
+  "tds": 8.9,
+  "tdsPpm": 890,
+  "status": "Ideal Espresso",
   "raw": {
-    "tdsAdc": 0,
+    "tdsAdc": 1234,
     "phAdc": 3102,
-    "phVoltage": 2.500
+    "phVoltage": 2.5
+  },
+  "calibration": {
+    "tdsMin": 8.5,
+    "tdsMax": 9.5,
+    "phMin": 5.1,
+    "phMax": 5.4,
+    "tempMin": 88,
+    "tempMax": 96,
+    "tolerance": 0.2
   }
 }
 ```
 
-## 9. Jalankan Dashboard Web
+Tes network ESP32:
 
-Masuk ke folder dashboard:
+```text
+http://192.168.4.1/api/network
+```
+
+## Setup Dashboard Lokal
+
+Masuk folder dashboard:
 
 ```powershell
-cd dashboard
+cd C:\Users\Entung\Documents\PlatformIO\Projects\espresso\dashboard
 ```
 
 Install dependency:
@@ -242,170 +253,473 @@ Install dependency:
 npm install
 ```
 
-Buat file `.env.local` di folder `dashboard`.
+Buat file env lokal:
 
-Jika dashboard dipakai lokal dan ESP32 ada di jaringan yang sama:
+```text
+dashboard/.env.local
+```
+
+Contoh isi untuk mode AP ESP32:
 
 ```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DATABASE?sslmode=require"
 NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.4.1"
 ```
 
-Jika ESP32 masuk WiFi router, isi IP ESP32:
+Contoh isi untuk ESP32 yang join WiFi/hotspot:
 
 ```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DATABASE?sslmode=require"
 NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.1.25"
 ```
 
-Kalau dashboard dideploy ke Vercel, kosongkan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` atau pakai URL HTTPS publik/tunnel. Browser HTTPS tidak bisa fetch ke IP lokal ESP32 langsung.
-
-Untuk database PostgreSQL, tambahkan:
-
-```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
-```
-
-Jika belum punya database, dashboard tetap bisa dibuka, tetapi fitur simpan cafe, kalibrasi, dan history tidak aktif penuh.
-
-Jalankan dashboard:
+Jalankan:
 
 ```powershell
 npm run dev
 ```
 
-Buka browser:
+Buka:
 
 ```text
 http://localhost:3000
 ```
 
-## 10. Setup Database PostgreSQL
+Penting:
 
-Langkah ini hanya perlu jika ingin menyimpan cafe, setting kalibrasi, dan history.
+- `.env.local` harus ada di folder `dashboard`, bukan root project.
+- Setelah mengubah `.env.local`, restart `npm run dev`.
+- Jangan commit `.env.local` karena berisi credential database.
 
-1. Siapkan PostgreSQL, misalnya dari Neon, Supabase, Railway, Vercel Postgres, atau PostgreSQL lokal.
-2. Isi `DATABASE_URL` di `dashboard/.env.local`.
-3. Jalankan migration:
+## Setup Neon Database
+
+Di Neon:
+
+1. Buat project PostgreSQL.
+2. Copy connection string.
+3. Masukkan ke `dashboard/.env.local` sebagai `DATABASE_URL`.
+4. Pastikan connection string memakai `sslmode=require`.
+
+Buat tabel dengan Prisma:
 
 ```powershell
+cd C:\Users\Entung\Documents\PlatformIO\Projects\espresso\dashboard
 npm run prisma:deploy
 ```
 
-Untuk development lokal, boleh memakai:
+Alternatif development:
 
 ```powershell
 npm run prisma:push
 ```
 
-## 11. Alur Pemakaian
+Project juga punya SQL siap paste untuk Neon SQL Editor:
+
+```text
+dashboard/prisma/seed-neon.sql
+```
+
+Cara pakai SQL seed:
+
+1. Buka Neon dashboard.
+2. Buka SQL Editor.
+3. Paste isi `dashboard/prisma/seed-neon.sql`.
+4. Run.
+
+Seed membuat:
+
+- Tabel `Cafe`
+- Tabel `CalibrationSetting`
+- Tabel `Measurement`
+- Cafe default
+- Calibration default
+- Contoh history measurement
+
+## Skenario Jaringan
+
+Bagian ini penting karena ESP32 AP tidak punya internet. Pilih skenario sesuai kebutuhan.
+
+### Skenario A: Kalibrasi Offline Pakai AP ESP32
+
+Kondisi:
+
+```text
+Laptop -> WiFi Espresso-Calibrator -> ESP32
+Laptop tidak punya internet
+```
+
+Yang bisa:
+
+- Dashboard lokal bisa dibuka di `http://localhost:3000`.
+- Dashboard bisa baca ESP32 di `http://192.168.4.1`.
+- Dashboard bisa save calibration ke ESP32.
+
+Yang tidak bisa:
+
+- Save cafe/history ke Neon gagal karena laptop tidak punya internet.
+
+Gunakan skenario ini untuk kalibrasi cepat tanpa database online.
+
+### Skenario B: ESP32 dan Laptop di WiFi yang Sama, Ada Internet
+
+Kondisi:
+
+```text
+Laptop -> WiFi/hotspot internet
+ESP32  -> WiFi/hotspot yang sama
+Dashboard lokal -> ESP32 + Neon
+```
+
+Yang bisa:
+
+- Dashboard baca ESP32.
+- Dashboard simpan cafe/history/calibration ke Neon.
+- Dashboard save calibration ke ESP32.
+
+Ini skenario terbaik untuk development lokal.
+
+Cara membuat ESP32 join WiFi tanpa rebuild:
+
+1. Connect laptop ke AP ESP32 dulu.
+2. Jalankan command ini:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://192.168.4.1/api/wifi" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"ssid":"NAMA_WIFI","password":"PASSWORD_WIFI"}'
+```
+
+3. Pindahkan laptop ke WiFi/hotspot yang sama.
+4. Lihat Serial Monitor ESP32.
+5. Ambil IP baru, contoh:
+
+```text
+Dashboard device URL: http://192.168.1.25
+```
+
+6. Masukkan URL itu di dashboard.
+
+Catatan hotspot:
+
+- ESP32 hanya bisa 2.4 GHz.
+- Gunakan WPA2.
+- Hindari 5 GHz atau WPA3-only.
+
+### Skenario C: Dashboard Vercel
+
+Kondisi:
+
+```text
+Browser -> Vercel HTTPS
+ESP32 lokal -> HTTP IP lokal
+```
+
+Masalah:
+
+- Browser modern memblokir HTTPS page yang fetch ke HTTP ESP32 lokal. Ini disebut mixed content.
+- Server Vercel juga tidak bisa akses IP lokal rumah/kafe kamu.
+
+Yang bisa:
+
+- Vercel bisa akses Neon.
+- Dashboard Vercel bisa menampilkan data database.
+
+Yang tidak bisa langsung:
+
+- Vercel dashboard membaca `http://192.168.x.x/api/sensor` dari ESP32 lokal.
+
+Solusi:
+
+- Jalankan dashboard lokal saat kalibrasi.
+- Atau pakai tunnel HTTPS ke ESP32/gateway lokal.
+- Atau ubah arsitektur: ESP32 push measurement ke endpoint internet.
+
+### Skenario D: Ingin Offline Tapi Tetap Simpan History
+
+Neon tidak cocok jika laptop tidak punya internet. Pilihan alternatif:
+
+- Simpan sementara di browser/localStorage lalu sync saat internet ada.
+- Pakai database lokal di laptop.
+- Gunakan hotspot HP yang punya internet dan sambungkan ESP32 ke hotspot itu.
+
+## Cara Pakai Harian
 
 1. Nyalakan ESP32.
-2. Pastikan sensor sudah tersambung sesuai tabel pin.
-3. Pastikan laptop/HP satu jaringan dengan ESP32.
-4. Cek `http://IP_ESP32/api/sensor`.
-5. Jalankan dashboard dengan `npm run dev`.
-6. Buka `http://localhost:3000`.
-7. Masukkan URL device ESP32 jika dashboard menyediakan input device URL.
-8. Pilih atau buat profil cafe.
-9. Atur target TDS, pH, dan suhu.
-10. Celupkan probe ke sampel espresso.
-11. Tunggu data stabil.
-12. Simpan hasil measurement jika database sudah aktif.
+2. Buka Serial Monitor dan lihat IP device.
+3. Jalankan dashboard lokal:
 
-## 12. Kalibrasi Sensor
+```powershell
+cd C:\Users\Entung\Documents\PlatformIO\Projects\espresso\dashboard
+npm run dev
+```
+
+4. Buka `http://localhost:3000`.
+5. Isi ESP32 URL sesuai Serial Monitor.
+6. Pastikan status menjadi `Connected`.
+7. Pilih atau buat cafe profile.
+8. Atur calibration.
+9. Klik `Save Calibration`.
+10. Simpan measurement jika database aktif.
+
+## Kalibrasi Sensor
 
 ### Kalibrasi pH
 
-Gunakan cairan buffer pH, misalnya pH 4.00, 6.86, dan 9.18.
+Gunakan buffer pH seperti 4.00, 6.86/7.00, dan 9.18.
 
-Di firmware, rumus pH memakai nilai:
+Firmware memakai konstanta:
 
 ```cpp
 const float PH_NEUTRAL_VOLTAGE = 2.50f;
 const float PH_SLOPE = 0.18f;
 ```
 
-Jika pembacaan pH meleset, sesuaikan dua nilai tersebut berdasarkan hasil buffer.
-
-Langkah sederhana:
+Langkah:
 
 1. Celupkan probe ke buffer pH 6.86 atau 7.00.
-2. Lihat `raw.phVoltage` dari endpoint `/api/sensor`.
-3. Pakai nilai voltage itu sebagai acuan `PH_NEUTRAL_VOLTAGE`.
-4. Cek lagi dengan buffer pH 4.00 dan 9.18.
-5. Sesuaikan `PH_SLOPE` sampai hasil mendekati nilai buffer.
+2. Buka `/api/sensor`.
+3. Lihat `raw.phVoltage`.
+4. Pakai nilai itu sebagai acuan `PH_NEUTRAL_VOLTAGE`.
+5. Cek buffer pH 4 dan 9.
+6. Sesuaikan `PH_SLOPE` sampai pembacaan mendekati buffer.
 
 ### Kalibrasi TDS
 
 Gunakan larutan standar TDS, misalnya 342 ppm, 707 ppm, atau 1000 ppm.
 
-Firmware menghitung TDS dari voltage dan kompensasi suhu. Jika hasil berbeda jauh:
+Langkah:
 
-1. Pastikan sensor TDS diberi supply sesuai modul.
-2. Pastikan output analog tidak lebih dari 3.3V.
-3. Celupkan probe ke larutan standar.
-4. Bandingkan nilai `tdsPpm` dengan nilai larutan.
+1. Pastikan output sensor TDS tidak lebih dari 3.3V.
+2. Celupkan probe ke larutan standar.
+3. Buka `/api/sensor`.
+4. Bandingkan `tdsPpm` dengan larutan standar.
 5. Jika perlu, tambahkan faktor koreksi di rumus `tdsPpm` pada `src/main.cpp`.
 
-## 13. Troubleshooting
+## Troubleshooting
 
-### ESP32 tidak terdeteksi
+### Error: Prisma `Can't reach database server`
 
-- Coba kabel USB lain yang mendukung data.
-- Install driver USB to Serial sesuai chip board, biasanya CP210x atau CH340.
-- Cek Device Manager untuk melihat port COM.
+Contoh error:
 
-### Upload gagal
+```text
+prisma:error Invalid `prisma.cafe.create()` invocation:
+Can't reach database server at `ep-xxxx-pooler...neon.tech:5432`
+POST /api/cafes 400
+```
 
-- Tekan tombol `BOOT` saat proses upload mulai.
-- Tutup Serial Monitor sebelum upload.
-- Coba port USB lain.
-- Pastikan board di `platformio.ini` adalah `esp32doit-devkit-v1`.
+Artinya dashboard tidak bisa menghubungi Neon.
 
-### API tidak bisa dibuka
+Penyebab umum:
 
-- Pastikan ESP32 menyala.
-- Pastikan laptop/HP satu jaringan dengan ESP32.
-- Jika mode AP, sambungkan ke WiFi `Espresso-Calibrator`.
-- Cek IP ESP32 dari Serial Monitor.
-- Buka endpoint lengkap: `http://IP_ESP32/api/sensor`.
+- Laptop sedang connect ke WiFi ESP32 `Espresso-Calibrator`, jadi tidak ada internet.
+- Internet laptop putus.
+- Neon sedang sleep/branch belum aktif.
+- `DATABASE_URL` salah atau sudah diganti.
+- Firewall/jaringan memblokir port PostgreSQL 5432.
 
-### Dashboard tidak membaca sensor
+Solusi cepat:
 
-- Pastikan `NEXT_PUBLIC_DEFAULT_DEVICE_URL` benar untuk mode yang dipakai.
-- Untuk dashboard Vercel, jangan arahkan ke IP lokal ESP32; gunakan dashboard lokal atau URL HTTPS publik/tunnel.
-- Coba buka API sensor langsung di browser saat debugging lokal.
-- Jika pakai hotspot/tethering, pastikan hotspot 2.4 GHz dan WPA2; ESP32 tidak bisa join 5 GHz atau WPA3.
+1. Pastikan laptop punya internet.
+2. Jangan pakai WiFi ESP32 jika ingin save ke Neon.
+3. Connect laptop ke WiFi/hotspot internet.
+4. Connect ESP32 ke WiFi/hotspot yang sama.
+5. Restart dashboard:
+
+```powershell
+Ctrl+C
+npm run dev
+```
+
+6. Coba buat cafe lagi.
+
+Tes koneksi Neon dari terminal dashboard:
+
+```powershell
+npm run prisma:deploy
+```
+
+Jika command itu juga gagal `Can't reach database server`, masalahnya koneksi internet/database, bukan dashboard UI.
+
+### Error: `DATABASE_URL is not configured`
+
+Artinya env belum terbaca.
+
+Cek:
+
+- File harus bernama `dashboard/.env.local`.
+- Bukan `.env`, bukan `.env.example`, dan bukan di root project.
+- Isi harus ada `DATABASE_URL=...`.
+- Restart `npm run dev` setelah edit env.
+
+Contoh benar:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DATABASE?sslmode=require"
+NEXT_PUBLIC_DEFAULT_DEVICE_URL="http://192.168.4.1"
+```
+
+### Error: Dashboard sensor `Failed to fetch`
+
+Penyebab umum:
+
+- ESP32 tidak satu jaringan dengan laptop.
+- ESP32 URL salah.
+- ESP32 belum menyala.
+- Laptop masih di WiFi lain.
+- Browser HTTPS mencoba fetch ESP32 HTTP.
+
+Solusi:
+
+1. Buka langsung endpoint ESP32 di browser:
+
+```text
+http://IP_ESP32/api/sensor
+```
+
+2. Kalau endpoint tidak terbuka, dashboard juga tidak akan bisa.
+3. Cek IP di Serial Monitor.
+4. Pastikan URL dashboard sama dengan IP Serial Monitor.
+
+### Error: HTTPS dashboard tidak bisa fetch HTTP ESP32
+
+Pesan dashboard:
+
+```text
+HTTPS dashboard cannot fetch an HTTP ESP URL
+```
+
+Artinya browser memblokir mixed content.
+
+Solusi:
+
+- Jalankan dashboard lokal dengan `npm run dev`.
+- Jangan gunakan Vercel untuk membaca IP lokal ESP32 langsung.
+- Jika wajib remote, gunakan HTTPS tunnel/gateway.
+
+### Error: Save calibration ke ESP32 gagal
+
+Cek:
+
+- ESP32 URL di dashboard benar.
+- Buka `http://IP_ESP32/api/calibration` di browser.
+- Pastikan dashboard tidak dibuka dari HTTPS jika ESP32 masih HTTP.
+- Pastikan range calibration valid: min harus lebih kecil dari max, tolerance lebih dari 0.
+
+### ESP32 tidak bisa join hotspot
+
+Cek:
+
+- Hotspot harus 2.4 GHz.
+- Security gunakan WPA2.
+- Hindari WPA3-only.
+- SSID/password case-sensitive.
+- Jarak ESP32 ke hotspot jangan terlalu jauh.
+
+Cek status network:
+
+```text
+http://192.168.4.1/api/network
+```
+
+Jika sudah punya IP baru, pakai IP baru itu di dashboard.
+
+### API ESP32 tidak bisa dibuka
+
+Cek:
+
+- ESP32 menyala.
+- Laptop satu jaringan dengan ESP32.
+- Mode AP: laptop connect ke `Espresso-Calibrator`.
+- Mode router/hotspot: laptop dan ESP32 join jaringan yang sama.
+- Endpoint lengkap harus pakai `http://`, bukan `https://`.
 
 ### Nilai sensor aneh
 
-- Pastikan GND semua modul tersambung ke GND ESP32.
-- Jangan biarkan pin analog menggantung tanpa sensor.
-- Pastikan output analog sensor tidak melebihi 3.3V.
-- Kalibrasi pH dan TDS dengan cairan standar.
-- Jauhkan kabel sensor dari sumber noise seperti adaptor buruk atau motor.
+Cek:
 
-## 14. File Penting
+- Semua GND tersambung.
+- Pin analog tidak menggantung.
+- Output sensor analog tidak lebih dari 3.3V.
+- Probe pH dan TDS sudah dikalibrasi.
+- Kabel sensor jauh dari noise listrik.
+- Power supply ESP32 stabil.
+
+### `pio` tidak dikenali
+
+Gunakan full path:
+
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run
+```
+
+Atau tambahkan folder ini ke PATH:
 
 ```text
-platformio.ini          Konfigurasi board ESP32 dan library
-src/main.cpp            Firmware ESP32
-dashboard/              Dashboard Next.js
-dashboard/.env.local    Konfigurasi URL ESP32 dan database
-dashboard/prisma/       Schema dan migration database
+C:\Users\Entung\.platformio\penv\Scripts
 ```
 
-## 15. Endpoint yang Dipakai
+## File Penting
 
-Firmware ESP32 menyediakan endpoint:
-
-```http
-GET /api/sensor
+```text
+platformio.ini                         Konfigurasi board dan library ESP32
+src/main.cpp                           Firmware ESP32
+dashboard/                             Dashboard Next.js
+dashboard/.env.local                   Env lokal, jangan commit
+dashboard/.env.example                 Contoh env
+dashboard/prisma/schema.prisma         Schema Prisma
+dashboard/prisma/seed-neon.sql         SQL setup + seed untuk Neon
+dashboard/components/dashboard.tsx     UI dashboard utama
+dashboard/app/api/*                    API backend dashboard
 ```
 
-Dashboard membaca endpoint itu, lalu mengevaluasi status ekstraksi memakai backend dashboard:
+## Checklist Jika Mau Demo
 
-```http
-POST /api/evaluate
+Sebelum demo:
+
+- Firmware berhasil di-upload.
+- Serial Monitor menampilkan IP ESP32.
+- `http://IP_ESP32/api/sensor` bisa dibuka.
+- Dashboard lokal bisa dibuka.
+- `.env.local` sudah berisi `DATABASE_URL`.
+- Laptop punya internet jika ingin save ke Neon.
+- ESP32 dan laptop berada di jaringan yang sama jika ingin realtime sensor.
+- Jangan pakai Vercel untuk membaca ESP32 lokal secara langsung.
+
+## Command Cepat
+
+Dashboard lokal:
+
+```powershell
+cd C:\Users\Entung\Documents\PlatformIO\Projects\espresso\dashboard
+npm run dev
 ```
 
-Status seperti under extract, ideal, atau over extract dihitung di dashboard dan juga tersedia dari firmware ESP32 lewat `/api/sensor`.
+Build dashboard:
+
+```powershell
+npm run build
+```
+
+Build firmware:
+
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run
+```
+
+Upload firmware:
+
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run --target upload
+```
+
+Set WiFi ESP32:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://192.168.4.1/api/wifi" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"ssid":"NAMA_WIFI","password":"PASSWORD_WIFI"}'
+```
