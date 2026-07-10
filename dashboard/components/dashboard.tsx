@@ -10,6 +10,7 @@ import {
   Save,
   Settings2,
   Square,
+  Target,
   Thermometer,
   Wifi,
 } from "lucide-react";
@@ -63,6 +64,20 @@ function formatNumber(value: number | undefined, digits = 2) {
   }
 
   return value.toFixed(digits);
+}
+
+function calibrationFromReading(reading: SensorReading, tolerance: number): Calibration {
+  const safeTolerance = tolerance > 0 ? tolerance : defaultCalibration.tolerance;
+
+  return {
+    tdsMin: Number((reading.tds - safeTolerance).toFixed(2)),
+    tdsMax: Number((reading.tds + safeTolerance).toFixed(2)),
+    phMin: Number((reading.ph - safeTolerance).toFixed(2)),
+    phMax: Number((reading.ph + safeTolerance).toFixed(2)),
+    tempMin: Number((reading.temperature - safeTolerance).toFixed(2)),
+    tempMax: Number((reading.temperature + safeTolerance).toFixed(2)),
+    tolerance: safeTolerance,
+  };
 }
 
 function normalizeDeviceUrl(url: string) {
@@ -190,7 +205,7 @@ export function Dashboard() {
     };
   }, [deviceUrl, isPolling, isSavingHistory, selectedCafeId, calibration]);
 
-  async function loadCafes() {
+  async function loadCafes(preferredCafeId = selectedCafeId) {
     try {
       const response = await fetch("/api/cafes", { cache: "no-store" });
       if (!response.ok) {
@@ -199,7 +214,8 @@ export function Dashboard() {
       const data = (await response.json()) as { items: Cafe[] };
       if (data.items.length > 0) {
         setCafes(data.items);
-        setSelectedCafeId(data.items[0].id);
+        const nextCafe = data.items.find((cafe) => cafe.id === preferredCafeId) ?? data.items[0];
+        setSelectedCafeId(nextCafe.id);
       }
     } catch {
       setCafes([fallbackCafe]);
@@ -286,6 +302,44 @@ export function Dashboard() {
     await loadCafes();
   }
 
+  async function setCurrentReadingAsStandard() {
+    setNotice("");
+
+    if (!latest) {
+      setNotice("No current reading available to set as cafe standard.");
+      return;
+    }
+
+    if (selectedCafeId === fallbackCafe.id) {
+      setNotice("Create or select a saved cafe before setting a cafe standard.");
+      return;
+    }
+
+    const nextCalibration = calibrationFromReading(latest, calibration.tolerance);
+
+    try {
+      assertCalibration(nextCalibration);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Invalid cafe standard range.");
+      return;
+    }
+
+    const response = await fetch("/api/calibration", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...nextCalibration, cafeId: selectedCafeId }),
+    });
+
+    if (!response.ok) {
+      setNotice("Cafe standard needs DATABASE_URL before it can save.");
+      return;
+    }
+
+    setCalibration(nextCalibration);
+    await loadCafes(selectedCafeId);
+    setNotice(`Cafe standard updated from current reading: TDS ${formatNumber(latest.tds)}, pH ${formatNumber(latest.ph)}, Temp ${formatNumber(latest.temperature, 1)} C.`);
+  }
+
   async function saveCalibration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
@@ -310,7 +364,7 @@ export function Dashboard() {
         return;
       }
 
-      await loadCafes();
+      await loadCafes(selectedCafeId);
       messages.push("Backend calibration updated.");
     }
 
@@ -508,6 +562,15 @@ export function Dashboard() {
                   title="Save current measurement"
                 >
                   <Save size={17} />
+                </button>
+                <button
+                  onClick={() => void setCurrentReadingAsStandard()}
+                  disabled={!latest || selectedCafeId === fallbackCafe.id}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Use current espresso shot as this cafe standard"
+                >
+                  <Target size={17} />
+                  Set Standard
                 </button>
                 <button
                   onClick={() => setIsSavingHistory((value) => !value)}

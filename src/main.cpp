@@ -11,8 +11,8 @@
 #define ONE_WIRE_BUS 4
 
 // Default WiFi kosong. Ubah lewat POST /api/wifi atau isi konstanta ini jika perlu.
-const char *DEFAULT_WIFI_SSID = "Redmi 12";
-const char *DEFAULT_WIFI_PASSWORD = "12345678";
+const char *DEFAULT_WIFI_SSID = "tantraa";
+const char *DEFAULT_WIFI_PASSWORD = "88888888";
 const char *AP_SSID = "Espresso-Calibrator";
 const char *AP_PASSWORD = "espresso123";
 

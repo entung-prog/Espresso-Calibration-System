@@ -9,7 +9,7 @@ Project ini punya dua bagian utama:
 
 ## Ringkasan Sistem
 
-ESP32 membaca sensor TDS, pH, dan suhu. Dashboard membaca data ESP32 lewat HTTP, mengevaluasi status ekstraksi, lalu bisa menyimpan cafe, calibration, dan history ke PostgreSQL/Neon.
+ESP32 membaca sensor TDS, pH, dan suhu. Dashboard membaca data ESP32 lewat HTTP, mengevaluasi status ekstraksi, lalu bisa menyimpan cafe, standar kalibrasi, dan history ke PostgreSQL/Neon. Setiap cafe bisa memiliki standar espresso sendiri berdasarkan shot yang dianggap paling tepat oleh barista.
 
 Alur data normal:
 
@@ -458,10 +458,36 @@ npm run dev
 4. Buka `http://localhost:3000`.
 5. Isi ESP32 URL sesuai Serial Monitor.
 6. Pastikan status menjadi `Connected`.
-7. Pilih atau buat cafe profile.
-8. Atur calibration.
-9. Klik `Save Calibration`.
-10. Simpan measurement jika database aktif.
+7. Pilih cafe aktif atau buat cafe profile baru.
+8. Lakukan beberapa percobaan espresso.
+9. Jika satu shot sudah dirasa tepat oleh barista, klik `Set Standard`.
+10. Dashboard menyimpan nilai TDS, pH, dan suhu shot tersebut sebagai standar cafe.
+11. Shot berikutnya dievaluasi berdasarkan standar cafe itu.
+12. Simpan measurement ke history jika database aktif.
+
+## Workflow Standar Cafe
+
+Fitur `Set Standard` dipakai saat barista sudah menemukan rasa espresso yang tepat. Contohnya, shot pertama dan kedua belum sesuai, lalu shot ketiga terasa pas. Barista menekan `Set Standard`, kemudian dashboard mengambil reading realtime terakhir dan menyimpannya sebagai standar cafe aktif.
+
+Nilai standar dibuat dari reading terakhir dengan toleransi yang sedang dipakai:
+
+```text
+tdsMin  = TDS shot - tolerance
+tdsMax  = TDS shot + tolerance
+phMin   = pH shot - tolerance
+phMax   = pH shot + tolerance
+tempMin = suhu shot - tolerance
+tempMax = suhu shot + tolerance
+```
+
+Setelah standar tersimpan, shot keempat dan seterusnya dibandingkan dengan standar tersebut agar rasa espresso lebih konsisten untuk cafe yang sama.
+
+Catatan penting:
+
+- `Set Standard` hanya aktif jika dashboard sudah menerima reading sensor.
+- Cafe harus tersimpan di database, bukan `Default Cafe` lokal.
+- `DATABASE_URL` harus aktif karena standar cafe disimpan ke PostgreSQL/Neon.
+- Tolerance bisa diatur di panel `Calibration` sebelum menekan `Set Standard`.
 
 ## Kalibrasi Sensor
 

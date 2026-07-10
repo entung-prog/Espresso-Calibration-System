@@ -1,19 +1,60 @@
 # Espresso Dashboard
 
-Next.js dashboard untuk monitoring ESP32 Coffee Calibration System.
+Dashboard Next.js untuk monitoring ESP32 Coffee Calibration System.
 
-Dashboard membaca sensor ESP32 lewat HTTP, mengevaluasi status ekstraksi, dan menyimpan cafe/calibration/history ke PostgreSQL jika `DATABASE_URL` aktif.
+Dashboard membaca sensor ESP32 lewat HTTP, mengevaluasi status ekstraksi espresso, dan menyimpan cafe, standar kalibrasi, serta history measurement ke PostgreSQL jika `DATABASE_URL` aktif.
 
 ## Fitur
 
-- Realtime card untuk TDS, pH, temperature, dan status ekstraksi
-- Grafik realtime memakai Chart.js
-- Evaluation endpoint `/api/evaluate`
-- Cafe profile
-- Calibration profile
-- History measurement ke PostgreSQL/Neon
-- Export history CSV
-- Save calibration ke ESP32 lewat `/api/calibration`
+- Realtime card untuk TDS, pH, temperature, dan status ekstraksi.
+- Grafik realtime memakai Chart.js.
+- Cafe profile untuk menyimpan standar tiap cafe.
+- Tombol `Set Standard` untuk menjadikan shot espresso terakhir sebagai standar cafe.
+- Calibration profile manual.
+- History measurement ke PostgreSQL/Neon.
+- Export history ke CSV.
+- Save calibration ke ESP32 lewat `/api/calibration`.
+- Evaluation endpoint `/api/evaluate`.
+
+## Workflow Barista
+
+1. Jalankan dashboard lokal.
+2. Hubungkan dashboard ke ESP32 lewat field `ESP32 URL`.
+3. Pilih cafe aktif atau buat cafe baru.
+4. Barista membuat beberapa shot espresso.
+5. Saat shot terasa paling tepat, klik `Set Standard`.
+6. Dashboard menyimpan nilai TDS, pH, dan temperature shot itu sebagai standar cafe.
+7. Shot berikutnya dievaluasi memakai standar cafe tersebut.
+8. Jika perlu, simpan measurement ke history atau aktifkan mode `Auto`.
+
+Contoh skenario:
+
+```text
+Shot 1  -> belum pas
+Shot 2  -> belum pas
+Shot 3  -> rasa pas, klik Set Standard
+Shot 4+ -> dibandingkan dengan standar dari shot 3
+```
+
+## Cara Kerja Set Standard
+
+`Set Standard` mengambil reading realtime terakhir dan membuat range kalibrasi memakai nilai tolerance yang sedang aktif.
+
+```text
+tdsMin  = TDS shot - tolerance
+tdsMax  = TDS shot + tolerance
+phMin   = pH shot - tolerance
+phMax   = pH shot + tolerance
+tempMin = temperature shot - tolerance
+tempMax = temperature shot + tolerance
+```
+
+Syarat:
+
+- Dashboard sudah menerima reading sensor terbaru.
+- Cafe aktif bukan `Default Cafe` lokal.
+- `DATABASE_URL` aktif karena standar disimpan ke database.
+- Tolerance harus lebih dari 0.
 
 ## Development Lokal
 
@@ -37,7 +78,7 @@ Buat file:
 dashboard/.env.local
 ```
 
-Contoh:
+Contoh database lokal:
 
 ```env
 DATABASE_URL="postgresql://espresso:espresso@localhost:5432/espresso?schema=public"
@@ -63,12 +104,6 @@ npm run prisma:migrate
 npm run dev
 ```
 
-Buka dashboard:
-
-```text
-http://localhost:3000
-```
-
 Untuk melihat isi database:
 
 ```powershell
@@ -84,8 +119,6 @@ Database : espresso
 User     : espresso
 Password : espresso
 ```
-
-Jika Docker belum tersedia, install Docker Desktop atau PostgreSQL lokal manual, lalu gunakan URL yang sama selama database/user/password-nya dibuat sesuai kredensial di atas.
 
 ## Database Neon
 
@@ -109,6 +142,18 @@ prisma/seed-neon.sql
 
 Paste file itu ke Neon SQL Editor jika ingin setup manual.
 
+## Endpoint Dashboard
+
+```http
+GET  /api/cafes
+POST /api/cafes
+GET  /api/calibration?cafeId=...
+PUT  /api/calibration
+POST /api/evaluate
+GET  /api/history
+POST /api/history
+```
+
 ## Skenario Koneksi
 
 ### ESP32 Access Point
@@ -128,7 +173,7 @@ Yang bisa:
 
 Yang tidak bisa:
 
-- Save cafe/history ke Neon, karena laptop biasanya tidak punya internet saat connect ke AP ESP32.
+- Save cafe, standar cafe, dan history ke Neon karena laptop biasanya tidak punya internet saat connect ke AP ESP32.
 
 ### WiFi/Hotspot Bersama
 
@@ -137,7 +182,7 @@ Laptop dan ESP32 join WiFi/hotspot yang sama dan ada internet.
 Yang bisa:
 
 - Dashboard membaca sensor ESP32.
-- Dashboard menyimpan data ke Neon.
+- Dashboard menyimpan cafe, standar cafe, dan history ke Neon.
 - Dashboard save calibration ke ESP32.
 
 Ini mode terbaik untuk development.
@@ -151,13 +196,6 @@ Untuk kalibrasi realtime, jalankan dashboard lokal. Untuk production remote, gun
 ## Error Umum
 
 ### Prisma `Can't reach database server`
-
-Contoh:
-
-```text
-Can't reach database server at `ep-xxxx-pooler...neon.tech:5432`
-POST /api/cafes 400
-```
 
 Artinya dashboard tidak bisa menghubungi Neon.
 
@@ -174,7 +212,7 @@ Solusi:
 1. Connect laptop ke WiFi/hotspot yang ada internet.
 2. Pastikan ESP32 juga join jaringan yang sama jika ingin realtime sensor.
 3. Restart `npm run dev`.
-4. Test ulang create cafe atau save history.
+4. Test ulang create cafe, `Set Standard`, atau save history.
 
 ### `DATABASE_URL is not configured`
 
