@@ -39,7 +39,6 @@ export function classifyExtraction(
 ) {
   const tdsTolerance = calibration.tolerance;
   const phTolerance = calibration.tolerance;
-  const tempTolerance = Math.max(1, calibration.tolerance * 5);
 
   const tdsLow = falling(reading.tds, calibration.tdsMin - tdsTolerance, calibration.tdsMin);
   const tdsIdeal = trapezoid(
@@ -61,27 +60,11 @@ export function classifyExtraction(
   );
   const phBase = rising(reading.ph, calibration.phMax, calibration.phMax + phTolerance);
 
-  const tempLow = falling(
-    reading.temperature,
-    calibration.tempMin - tempTolerance,
-    calibration.tempMin,
-  );
-  const tempIdeal = trapezoid(
-    reading.temperature,
-    calibration.tempMin - tempTolerance,
-    calibration.tempMin,
-    calibration.tempMax,
-    calibration.tempMax + tempTolerance,
-  );
-  const tempHigh = rising(
-    reading.temperature,
-    calibration.tempMax,
-    calibration.tempMax + tempTolerance,
-  );
-
-  const underExtract = Math.max(tdsLow, phAcid, tempLow);
-  const idealEspresso = Math.min(tdsIdeal, phIdeal, tempIdeal);
-  const overExtract = Math.max(tdsHigh, phBase, tempHigh);
+  // Temperature is retained for TDS compensation and display, but extraction
+  // status is determined by the primary TDS and pH measurements.
+  const underExtract = Math.max(tdsLow, phAcid);
+  const idealEspresso = Math.min(tdsIdeal, phIdeal);
+  const overExtract = Math.max(tdsHigh, phBase);
   const totalWeight = underExtract + idealEspresso + overExtract;
 
   if (totalWeight <= 0) {

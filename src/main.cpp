@@ -342,7 +342,6 @@ bool isCalibrationValid() {
 const char *classifyExtraction(float tds, float ph, float temperature) {
     float tdsTolerance = calibration.tolerance;
     float phTolerance = calibration.tolerance;
-    float tempTolerance = max(1.0f, calibration.tolerance * 5.0f);
 
     float tdsLow = falling(tds, calibration.tdsMin - tdsTolerance, calibration.tdsMin);
     float tdsIdeal = trapezoid(
@@ -362,24 +361,12 @@ const char *classifyExtraction(float tds, float ph, float temperature) {
         calibration.phMax + phTolerance);
     float phBase = rising(ph, calibration.phMax, calibration.phMax + phTolerance);
 
-    float tempLow = falling(
-        temperature,
-        calibration.tempMin - tempTolerance,
-        calibration.tempMin);
-    float tempIdeal = trapezoid(
-        temperature,
-        calibration.tempMin - tempTolerance,
-        calibration.tempMin,
-        calibration.tempMax,
-        calibration.tempMax + tempTolerance);
-    float tempHigh = rising(
-        temperature,
-        calibration.tempMax,
-        calibration.tempMax + tempTolerance);
-
-    float underExtract = max(tdsLow, max(phAcid, tempLow));
-    float idealEspresso = min(tdsIdeal, min(phIdeal, tempIdeal));
-    float overExtract = max(tdsHigh, max(phBase, tempHigh));
+    // TDS dan pH adalah dasar klasifikasi hasil ekstraksi. Suhu tetap dibaca
+    // untuk kompensasi perhitungan TDS dan ditampilkan sebagai informasi, tetapi
+    // tidak boleh sendirian mengubah shot ideal menjadi under/over extract.
+    float underExtract = max(tdsLow, phAcid);
+    float idealEspresso = min(tdsIdeal, phIdeal);
+    float overExtract = max(tdsHigh, phBase);
 
     float totalWeight = underExtract + idealEspresso + overExtract;
     if (totalWeight <= 0.0f) {

@@ -66,7 +66,11 @@ function formatNumber(value: number | undefined, digits = 2) {
   return value.toFixed(digits);
 }
 
-function calibrationFromReading(reading: SensorReading, tolerance: number): Calibration {
+function calibrationFromReading(
+  reading: SensorReading,
+  tolerance: number,
+  currentCalibration: Calibration,
+): Calibration {
   const safeTolerance = tolerance > 0 ? tolerance : defaultCalibration.tolerance;
 
   return {
@@ -74,8 +78,10 @@ function calibrationFromReading(reading: SensorReading, tolerance: number): Cali
     tdsMax: Number((reading.tds + safeTolerance).toFixed(2)),
     phMin: Number((reading.ph - safeTolerance).toFixed(2)),
     phMax: Number((reading.ph + safeTolerance).toFixed(2)),
-    tempMin: Number((reading.temperature - safeTolerance).toFixed(2)),
-    tempMax: Number((reading.temperature + safeTolerance).toFixed(2)),
+    // Kept only for compatibility with calibration records created by older versions.
+    // Temperature is observational data, not a calibration target.
+    tempMin: currentCalibration.tempMin,
+    tempMax: currentCalibration.tempMax,
     tolerance: safeTolerance,
   };
 }
@@ -315,7 +321,7 @@ export function Dashboard() {
       return;
     }
 
-    const nextCalibration = calibrationFromReading(latest, calibration.tolerance);
+    const nextCalibration = calibrationFromReading(latest, calibration.tolerance, calibration);
 
     try {
       assertCalibration(nextCalibration);
@@ -337,7 +343,7 @@ export function Dashboard() {
 
     setCalibration(nextCalibration);
     await loadCafes(selectedCafeId);
-    setNotice(`Cafe standard updated from current reading: TDS ${formatNumber(latest.tds)}, pH ${formatNumber(latest.ph)}, Temp ${formatNumber(latest.temperature, 1)} C.`);
+    setNotice(`Cafe standard updated from current reading: TDS ${formatNumber(latest.tds)}, pH ${formatNumber(latest.ph)}.`);
   }
 
   async function saveCalibration(event: FormEvent<HTMLFormElement>) {
@@ -724,14 +730,6 @@ export function Dashboard() {
                 max={calibration.phMax}
                 minKey="phMin"
                 maxKey="phMax"
-                onChange={updateCalibration}
-              />
-              <RangeInputs
-                label="Temperature"
-                min={calibration.tempMin}
-                max={calibration.tempMax}
-                minKey="tempMin"
-                maxKey="tempMax"
                 onChange={updateCalibration}
               />
               <label className="grid gap-2 text-sm font-medium text-stone-600">

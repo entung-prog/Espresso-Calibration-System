@@ -476,11 +476,11 @@ tdsMin  = TDS shot - tolerance
 tdsMax  = TDS shot + tolerance
 phMin   = pH shot - tolerance
 phMax   = pH shot + tolerance
-tempMin = suhu shot - tolerance
-tempMax = suhu shot + tolerance
 ```
 
 Setelah standar tersimpan, shot keempat dan seterusnya dibandingkan dengan standar tersebut agar rasa espresso lebih konsisten untuk cafe yang sama.
+
+Status `Under Extract`, `Ideal Espresso`, atau `Over Extract` ditentukan dari TDS dan pH sebagai parameter utama. Suhu tetap direkam, ditampilkan, dan dipakai untuk kompensasi pembacaan TDS, tetapi suhu di luar rentang tidak akan sendiri mengubah status ekstraksi.
 
 Catatan penting:
 

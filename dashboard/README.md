@@ -23,7 +23,7 @@ Dashboard membaca sensor ESP32 lewat HTTP, mengevaluasi status ekstraksi espress
 3. Pilih cafe aktif atau buat cafe baru.
 4. Barista membuat beberapa shot espresso.
 5. Saat shot terasa paling tepat, klik `Set Standard`.
-6. Dashboard menyimpan nilai TDS, pH, dan temperature shot itu sebagai standar cafe.
+6. Dashboard menyimpan nilai TDS dan pH shot itu sebagai standar cafe; temperature hanya dicatat sebagai informasi.
 7. Shot berikutnya dievaluasi memakai standar cafe tersebut.
 8. Jika perlu, simpan measurement ke history atau aktifkan mode `Auto`.
 
@@ -45,8 +45,6 @@ tdsMin  = TDS shot - tolerance
 tdsMax  = TDS shot + tolerance
 phMin   = pH shot - tolerance
 phMax   = pH shot + tolerance
-tempMin = temperature shot - tolerance
-tempMax = temperature shot + tolerance
 ```
 
 Syarat:
@@ -55,6 +53,8 @@ Syarat:
 - Cafe aktif bukan `Default Cafe` lokal.
 - `DATABASE_URL` aktif karena standar disimpan ke database.
 - Tolerance harus lebih dari 0.
+
+Status ekstraksi memakai TDS dan pH sebagai parameter utama. Temperature tetap tersimpan dan tampil sebagai informasi pendukung (serta dipakai firmware untuk kompensasi TDS), sehingga perubahan suhu saja tidak mengubah status menjadi `Under Extract` atau `Over Extract`.
 
 ## Development Lokal
 
